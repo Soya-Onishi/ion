@@ -6,7 +6,7 @@ use crate::{
 };
 use nix::unistd::{geteuid, gethostname, getpid, getuid};
 use scopes::{Namespace, Scope, Scopes};
-use std::{env, ffi::CStr, rc::Rc};
+use std::{env, ffi::CStr, rc::Rc, convert::TryFrom};
 use unicode_segmentation::UnicodeSegmentation;
 
 /// Contain a dynamically-typed variable value
@@ -154,8 +154,17 @@ impl Variables {
     /// working directory which the leading `HOME` prefix replaced with a tilde character.
     #[must_use]
     fn get_simplified_directory(&self) -> types::Str {
-        let home = self.get_str("HOME").unwrap_or_else(|_| "?".into());
-        env::var("PWD").unwrap().replace(&*home, "~").into()
+        let home = self.get_str("HOME").unwrap_or_else(|_| "?".into()).to_string();
+        let home = std::path::Path::new(&home);
+
+        let pwd = env::var("PWD").unwrap();
+        let pwd = std::path::Path::new(&pwd);
+        
+        if pwd.starts_with(home) {
+            pwd.to_str().unwrap().replacen(home.to_str().unwrap(), "~", 1).into()
+        } else {
+            pwd.to_str().unwrap().into()
+        }  
     }
 
     /// Indicates if name is valid for functions and variables
